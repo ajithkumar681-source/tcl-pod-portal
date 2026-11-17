@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TCL Logistics | Live POD & Dispatch Operations</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Tone.js for subtle audio confirmation feedback -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            tcl: {
+              red: '#E60012',
+              dark: '#B8000E',
+              light: '#FFF1F2',
+            },
+            slate: {
+              900: '#0F172A',
+              800: '#1E293B',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Custom transitions & subtle scrollbars */
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F8FAFC;
+      color: #0F172A;
+    }
+
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); opacity: 0.75; }
+      70% { transform: scale(1.35); opacity: 0; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+
+    .live-dot::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 9999px;
+      background-color: #10B981;
+      animation: pulseRing 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    @keyframes slideInDown {
+      from { opacity: 0; transform: translateY(-12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .animate-toast {
+      animation: slideInDown 0.28s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-red-100 selection:text-red-700">
+
+  <!-- Top Enterprise Navigation Header -->
+  <header class="sticky top-0 z-40 bg-slate-900 text-white border-b border-slate-800 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 gap-3">
+        <!-- Brand Identity -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="bg-[#E60012] text-white font-extrabold tracking-tight text-lg px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5">
+              <span>TCL</span>
+              <span class="text-xs font-semibold bg-black/20 px-1.5 py-0.5 rounded">TMS</span>
+            </div>
+            <div>
+              <h1 class="text-base sm:text-lg font-bold tracking-tight text-white leading-tight">
+                Live POD & Dispatch Portal
+              </h1>
+              <p class="text-xs text-slate-400 flex items-center gap-2">
+                <span class="relative inline-block w-2 h-2 rounded-full bg-emerald-500 live-dot"></span>
+                <span>Real-Time Courier & MIS Sync Active</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- Audio Toggle for Office Alerts -->
+          <button
+            id="soundToggleBtn"
+            onclick="toggleSound()"
+            title="Toggle Alert Chime"
+            class="sm:hidden p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition"
+          >
+            <i id="soundIconMobile" class="fa-solid fa-volume-high text-emerald-400"></i>
+          </button>
+        </div>
+
+        <!-- Primary View Switcher & Sound Control -->
+        <div class="flex items-center gap-2 sm:gap-3">
+          <div class="grid grid-cols-2 bg-slate-800 p-1 rounded-xl border border-slate-700 w-full sm:w-auto">
+            <button
+              id="tabDriver"
+              onclick="switchView('driver')"
+              class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-[#E60012] text-white shadow-sm"
+            >
+              <i class="fa-solid fa-mobile-screen-button"></i>
+              <span>Driver / Courier App</span>
+            </button>
+            <button
+              id="tabDashboard"
+              onclick="switchView('dashboard')"
+              class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-300 hover:text-white"
+            >
+              <i class="fa-solid fa-desktop"></i>
+              <span>Office MIS Dashboard</span>
+              <span id="navBadgeCount" class="ml-0.5 px-1.5 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-300 font-bold">5</span>
+            </button>
+          </div>
+
+          <button
+            id="soundToggleDesktop"
+            onclick="toggleSound()"
+            title="Toggle Live Delivery Sound Alert"
+            class="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700 transition"
+          >
+            <i id="soundIconDesktop" class="fa-solid fa-volume-high text-emerald-400"></i>
+            <span id="soundLabel">Sound On</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Floating Live Notification Toast Container -->
+  <div id="toastContainer" class="fixed top-20 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-[calc(100%-2rem)] pointer-events-none"></div>
+
+  <!-- Main Workspace Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- =================================================================== -->
+    <!-- VIEW 1: DRIVER / COURIER MOBILE CAPTURE VIEW (FIELD APP)            -->
+    <!-- =================================================================== -->
+    <section id="driverView" class="max-w-xl mx-auto">
+      <!-- Field Helper Banner -->
+      <div class="mb-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-red-50 text-[#E60012] flex items-center justify-center text-lg shrink-0">
+            <i class="fa-solid fa-truck-fast"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-900">Instant Field POD Submission</h2>
+            <p class="text-xs text-slate-500">Submit parcel photo & GPS at delivery—office MIS updates immediately.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick="fillQuickTestSample()"
+          class="shrink-0 text-xs font-semibold px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+        >
+          <i class="fa-solid fa-wand-magic-sparkles mr-1 text-[#E60012]"></i>Auto-Fill Test
+        </button>
+      </div>
+
+      <!-- Main Mobile Capture Card -->
+      <form id="podForm" onsubmit="handlePodSubmit(event)" class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <!-- Card Top Accent Bar -->
+        <div class="h-1.5 bg-gradient-to-r from-[#E60012] via-red-500 to-slate-900"></div>
+
+        <div class="p-5 sm:p-6 space-y-5">
+          <!-- Order Identifiers: Invoice No & Docket No Only -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="invoiceInput" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                Invoice No <span class="text-[#E60012]">*</span>
+              </label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                  <i class="fa-solid fa-file-invoice"></i>
+                </span>
+                <input
+                  type="text"
+                  id="invoiceInput"
+                  required
+                  placeholder="e.g., TN26101501"
+                  class="w-full pl-10 pr-3 py-3 text-sm font-semibold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:bg-white transition uppercase"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label for="docketInput" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                Docket No (AWB / LR) <span class="text-[#E60012]">*</span>
+              </label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                  <i class="fa-solid fa-barcode"></i>
+                </span>
+                <input
+                  type="text"
+                  id="docketInput"
+                  required
+                  placeholder="e.g., DKT98451203"
+                  class="w-full pl-10 pr-3 py-3 text-sm font-semibold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:bg-white transition uppercase"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Customer / WH Name + Quick-Select Presets -->
+          <div>
+            <label for="customerInput" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+              Customer / Warehouse Name <span class="text-[#E60012]">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                <i class="fa-solid fa-warehouse"></i>
+              </span>
+              <input
+                type="text"
+                id="customerInput"
+                required
+                placeholder="Select preset below or enter consignee name"
+                class="w-full pl-10 pr-3 py-3 text-sm font-medium text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:bg-white transition"
+              />
+            </div>
+            <!-- Quick-Select Presets -->
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <button type="button" onclick="selectPreset('Chennai New WH Class A-3')" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-[#E60012] text-slate-600 font-medium transition">
+                Chennai WH A-3
+              </button>
+              <button type="button" onclick="selectPreset('Tanay Logistics - AP Hub')" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-[#E60012] text-slate-600 font-medium transition">
+                Tanay Logistics (AP)
+              </button>
+              <button type="button" onclick="selectPreset('Reliance Digital - Tiruvallur')" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-[#E60012] text-slate-600 font-medium transition">
+                Reliance Digital
+              </button>
+              <button type="button" onclick="selectPreset('Flipkart Supply Chain - MH')" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-[#E60012] text-slate-600 font-medium transition">
+                Flipkart Hub (MH)
+              </button>
+            </div>
+          </div>
+
+          <!-- Delivery Status Selector Pills -->
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
+              Delivery Status <span class="text-[#E60012]">*</span>
+            </label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5" id="statusPillGroup">
+              <button
+                type="button"
+                data-status="Delivered"
+                onclick="selectStatus('Delivered')"
+                class="status-pill flex items-center justify-center gap-2 py-3.5 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-bold text-sm shadow-sm transition"
+              >
+                <i class="fa-solid fa-circle-check text-emerald-600 text-base"></i>
+                <span>Delivered</span>
+              </button>
+
+              <button
+                type="button"
+                data-status="Partial Delivery"
+                onclick="selectStatus('Partial Delivery')"
+                class="status-pill flex items-center justify-center gap-2 py-3.5 px-3 rounded-xl border-2 border-slate-200 bg-white text-slate-600 hover:border-amber-400 font-semibold text-sm transition"
+              >
+                <i class="fa-solid fa-box-open text-amber-500 text-base"></i>
+                <span>Partial</span>
+              </button>
+
+              <button
+                type="button"
+                data-status="Re-attempt"
+                onclick="selectStatus('Re-attempt')"
+                class="status-pill flex items-center justify-center gap-2 py-3.5 px-3 rounded-xl border-2 border-slate-200 bg-white text-slate-600 hover:border-rose-400 font-semibold text-sm transition"
+              >
+                <i class="fa-solid fa-rotate-left text-rose-500 text-base"></i>
+                <span>Unavailable</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Conditional Partial Delivery Quantity Breakdown Box (Shown ONLY when Partial is selected) -->
+          <div id="partialQtySection" class="hidden bg-amber-50/90 border-2 border-amber-300 rounded-2xl p-4 space-y-3.5 transition-all">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center text-xs">
+                  <i class="fa-solid fa-boxes-packing"></i>
+                </span>
+                <div>
+                  <h3 class="text-xs font-extrabold uppercase tracking-wider text-amber-900">Partial Delivery Quantity & Reason</h3>
+                  <p class="text-[11px] text-amber-700">Enter Invoice Qty, Return Qty & mandatory reason for MIS reconciliation</p>
+                </div>
+              </div>
+              <span id="calcDeliveredBadge" class="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-xs font-extrabold text-emerald-700 shadow-sm">
+                Delivered: 0
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="invoiceQtyInput" class="block text-xs font-bold uppercase tracking-wider text-amber-900 mb-1">
+                  Invoice Qty <span class="text-[#E60012]">*</span>
+                </label>
+                <input
+                  type="number"
+                  id="invoiceQtyInput"
+                  min="1"
+                  step="1"
+                  oninput="updatePartialCalc()"
+                  placeholder="e.g., 20"
+                  class="w-full px-3.5 py-2.5 text-sm font-bold text-slate-900 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
+                />
+              </div>
+
+              <div>
+                <label for="returnQtyInput" class="block text-xs font-bold uppercase tracking-wider text-amber-900 mb-1">
+                  Return Qty <span class="text-[#E60012]">*</span>
+                </label>
+                <input
+                  type="number"
+                  id="returnQtyInput"
+                  min="0"
+                  step="1"
+                  oninput="updatePartialCalc()"
+                  placeholder="e.g., 2"
+                  class="w-full px-3.5 py-2.5 text-sm font-bold text-rose-700 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
+                />
+              </div>
+            </div>
+
+            <!-- Quick-Select Partial Reason Chips -->
+            <div>
+              <span class="block text-[11px] font-bold uppercase tracking-wider text-amber-800 mb-1.5">Quick Reason Select:</span>
+              <div class="flex flex-wrap gap-1.5">
+                <button type="button" onclick="applyPartialReason('Shortage in carton')" class="text-xs px-2.5 py-1 rounded-lg bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 font-medium transition">
+                  Shortage in carton
+                </button>
+                <button type="button" onclick="applyPartialReason('Damaged during transit')" class="text-xs px-2.5 py-1 rounded-lg bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 font-medium transition">
+                  Damaged during transit
+                </button>
+                <button type="button" onclick="applyPartialReason('Customer refused partial qty')" class="text-xs px-2.5 py-1 rounded-lg bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 font-medium transition">
+                  Customer refused partial qty
+                </button>
+                <button type="button" onclick="applyPartialReason('Wrong item received')" class="text-xs px-2.5 py-1 rounded-lg bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 font-medium transition">
+                  Wrong item received
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Camera / Photo POD Upload Zone -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                Photo POD / Signed LR Copy <span class="text-[#E60012]">*</span>
+              </label>
+              <button
+                type="button"
+                onclick="generateSamplePodPhoto()"
+                class="text-xs font-semibold text-[#E60012] hover:underline"
+              >
+                <i class="fa-solid fa-camera-retro mr-1"></i>Use Sample POD Photo
+              </button>
+            </div>
+
+            <!-- Hidden File Input supporting Mobile Camera -->
+            <input
+              type="file"
+              id="podFileInput"
+              accept="image/*"
+              capture="environment"
+              onchange="handlePhotoUpload(event)"
+              class="hidden"
+            />
+
+            <!-- Drop/Tap Zone -->
+            <div
+              id="photoDropZone"
+              onclick="document.getElementById('podFileInput').click()"
+              class="cursor-pointer border-2 border-dashed border-slate-300 hover:border-[#E60012] bg-slate-50 hover:bg-red-50/30 rounded-2xl p-6 text-center transition group"
+            >
+              <div class="w-14 h-14 mx-auto rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-2xl text-[#E60012] group-hover:scale-105 transition mb-3">
+                <i class="fa-solid fa-camera"></i>
+              </div>
+              <p class="text-sm font-bold text-slate-800">Tap to Open Camera or Upload POD</p>
+              <p class="text-xs text-slate-500 mt-1">Auto-stamps date, time & verified GPS watermark</p>
+            </div>
+
+            <!-- Photo Preview Container with Watermark Overlay -->
+            <div id="photoPreviewContainer" class="hidden relative rounded-2xl overflow-hidden border border-slate-300 bg-slate-900 shadow-inner">
+              <img id="podPreviewImg" src="" alt="POD Preview" class="w-full h-56 object-cover opacity-95" />
+
+              <!-- Simulated Watermark Stamp Overlay -->
+              <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3.5 text-white text-xs font-mono">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="inline-flex items-center gap-1.5 text-emerald-400 font-bold">
+                    <i class="fa-solid fa-shield-check"></i> TCL VERIFIED POD
+                  </span>
+                  <span id="watermarkTimestamp" class="text-slate-200">17-11-2026 19:42 IST</span>
+                </div>
+                <p id="watermarkCoords" class="text-slate-300 truncate mt-0.5">
+                  GPS: 13.1235° N, 79.9120° E • Tiruvallur, TN
+                </p>
+              </div>
+
+              <!-- Retake Button -->
+              <button
+                type="button"
+                onclick="resetPhoto()"
+                class="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-slate-900/85 hover:bg-black text-white text-xs font-semibold backdrop-blur-sm border border-white/20 shadow transition"
+              >
+                <i class="fa-solid fa-rotate mr-1"></i>Retake Photo
+              </button>
+            </div>
+          </div>
+
+          <!-- Auto-GPS Location Capture -->
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-start gap-3">
+                <div id="gpsIconBox" class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <i class="fa-solid fa-location-dot"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-800">GPS Location Tag</span>
+                    <span id="gpsStatusBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                      Locked (Accuracy 12m)
+                    </span>
+                  </div>
+                  <p id="gpsAddressText" class="text-xs text-slate-600 mt-0.5">
+                    13.1235° N, 79.9120° E — Industrial Estate, Tiruvallur, TN
+                  </p>
+                  <a
+                    id="gpsMapLink"
+                    href="https://maps.google.com/?q=13.1235,79.9120"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1 text-xs font-semibold text-[#E60012] hover:underline mt-1"
+                  >
+                    <span>Verify on Google Maps</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                  </a>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                id="captureGpsBtn"
+                onclick="captureGpsLocation()"
+                class="shrink-0 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 hover:border-slate-400 text-slate-800 text-xs font-bold shadow-sm transition flex items-center justify-center gap-1.5"
+              >
+                <i class="fa-solid fa-crosshairs text-[#E60012]"></i>
+                <span>Refresh GPS</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Receiver Name & Remarks -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="receiverInput" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                Receiver Name & Mobile
+              </label>
+              <input
+                type="text"
+                id="receiverInput"
+                placeholder="e.g., Ramesh K (98401XXXXX)"
+                class="w-full px-3.5 py-3 text-sm font-medium text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:bg-white transition"
+              />
+            </div>
+
+            <div>
+              <label for="remarksInput" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                Delivery Remarks <span id="remarksRequiredStar" class="text-[#E60012] hidden">*</span>
+              </label>
+              <input
+                type="text"
+                id="remarksInput"
+                value="Delivery completed without issue"
+                placeholder="Condition / Seal OK / Shortages"
+                class="w-full px-3.5 py-3 text-sm font-medium text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:bg-white transition"
+              />
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button
+            type="submit"
+            class="w-full py-4 px-6 rounded-2xl bg-[#E60012] hover:bg-[#B8000E] active:scale-[0.99] text-white font-bold text-base shadow-lg shadow-red-600/25 transition flex items-center justify-center gap-2.5"
+          >
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>Submit POD & Notify Office</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- VIEW 2: LIVE OPERATIONS DASHBOARD (OFFICE / MIS VIEW)               -->
+    <!-- =================================================================== -->
+    <section id="dashboardView" class="hidden space-y-6">
+
+      <!-- Real-Time KPI Summary Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Total Dispatched</span>
+            <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+              <i class="fa-solid fa-boxes-stacked"></i>
+            </div>
+          </div>
+          <p id="kpiTotal" class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">0</p>
+          <p class="text-xs text-slate-500 mt-1">Active Invoice & Docket shipments</p>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Delivered Today</span>
+            <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i class="fa-solid fa-circle-check"></i>
+            </div>
+          </div>
+          <p id="kpiDelivered" class="text-2xl sm:text-3xl font-extrabold text-emerald-600 mt-2">0</p>
+          <p class="text-xs text-emerald-700 font-medium mt-1">Verified with Photo POD</p>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Pending TMS Sync</span>
+            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+          </div>
+          <p id="kpiPending" class="text-2xl sm:text-3xl font-extrabold text-amber-600 mt-2">0</p>
+          <p class="text-xs text-slate-500 mt-1">Ready for Batch POD upload</p>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Exceptions / Alerts</span>
+            <div class="w-9 h-9 rounded-xl bg-red-50 text-[#E60012] flex items-center justify-center">
+              <i class="fa-solid fa-bell"></i>
+            </div>
+          </div>
+          <p id="kpiIssues" class="text-2xl sm:text-3xl font-extrabold text-[#E60012] mt-2">0</p>
+          <p class="text-xs text-slate-500 mt-1">Partial or re-attempt needed</p>
+        </div>
+      </div>
+
+      <!-- Live Incoming Alert Banner & Action Toolbar -->
+      <div class="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="flex items-start sm:items-center gap-3.5">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-satellite-dish"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-400">Live Courier Feed</span>
+              <span id="lastAlertTime" class="text-xs text-slate-400">• Listening for field updates</span>
+            </div>
+            <p id="liveBannerText" class="text-sm text-slate-200 mt-0.5">
+              All incoming courier POD submissions appear here in real time with GPS & photo proof.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            onclick="simulateIncomingDelivery()"
+            class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center gap-2"
+          >
+            <i class="fa-solid fa-bolt"></i>
+            <span>Simulate Incoming Courier Delivery</span>
+          </button>
+
+          <button
+            onclick="exportMisCsv()"
+            class="px-4 py-2.5 rounded-xl bg-[#E60012] hover:bg-[#B8000E] text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center gap-2"
+          >
+            <i class="fa-solid fa-file-csv"></i>
+            <span>Export MIS / TMS CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search & Filter Bar + Data Table Card -->
+      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <!-- Toolbar -->
+        <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <!-- Search Input -->
+          <div class="relative flex-1 max-w-md">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </span>
+            <input
+              type="text"
+              id="searchInput"
+              oninput="renderDashboard()"
+              placeholder="Search Invoice No, Docket No, or Customer..."
+              class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:bg-white transition"
+            />
+          </div>
+
+          <!-- Status Filter Pills -->
+          <div class="flex flex-wrap items-center gap-1.5" id="filterPills">
+            <button onclick="setFilter('All')" data-filter="All" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white transition">
+              All
+            </button>
+            <button onclick="setFilter('Delivered')" data-filter="Delivered" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+              Delivered
+            </button>
+            <button onclick="setFilter('Pending Sync')" data-filter="Pending Sync" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+              Pending Sync
+            </button>
+            <button onclick="setFilter('Issue')" data-filter="Issue" class="filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+              Partial / Issue
+            </button>
+          </div>
+        </div>
+
+        <!-- Responsive TCL TMS & MIS Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <th class="py-3.5 px-4">Invoice No</th>
+                <th class="py-3.5 px-4">Docket No</th>
+                <th class="py-3.5 px-4">Customer / WH</th>
+                <th class="py-3.5 px-4">Status</th>
+                <th class="py-3.5 px-4">Qty (Inv / Del / Ret)</th>
+                <th class="py-3.5 px-4">Remarks</th>
+                <th class="py-3.5 px-4">Delivered Timestamp</th>
+                <th class="py-3.5 px-4">GPS Location</th>
+                <th class="py-3.5 px-4">POD Photo</th>
+                <th class="py-3.5 px-4 text-right">TMS Sync Action</th>
+              </tr>
+            </thead>
+            <tbody id="podTableBody" class="divide-y divide-slate-200 text-sm">
+              <!-- Populated dynamically via JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table Footer -->
+        <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
+          <span id="tableCountLabel">Showing 0 records</span>
+          <div class="flex items-center gap-4">
+            <button onclick="resetDemoData()" class="text-slate-500 hover:text-[#E60012] font-medium transition">
+              <i class="fa-solid fa-arrows-rotate mr-1"></i>Reset Default Sample Data
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Lightbox Modal for POD Photo & Details Inspection -->
+  <div id="photoModal" class="hidden fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeModal(event)">
+    <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200" onclick="event.stopPropagation()">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <h3 id="modalTitle" class="text-sm font-bold text-slate-900">POD Proof Verification</h3>
+          <p id="modalSubtitle" class="text-xs text-slate-500">TN26101501 • DKT98451203</p>
+        </div>
+        <button onclick="closeModal()" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="bg-slate-950 relative">
+        <img id="modalImg" src="" alt="Full POD Proof" class="w-full max-h-[60vh] object-contain mx-auto" />
+      </div>
+      <div class="p-4 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div class="space-y-1">
+          <p id="modalReceiver" class="font-semibold text-slate-800">Receiver: Ramesh K</p>
+          <p id="modalQtyInfo" class="font-bold text-slate-700 hidden">Qty Breakdown: Invoice 20 | Delivered 18 | Return 2</p>
+          <p id="modalRemarks" class="text-slate-600">Remarks: Delivery completed without issue</p>
+        </div>
+        <a
+          id="modalGpsLink"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition shrink-0"
+        >
+          <i class="fa-solid fa-location-dot text-emerald-400"></i>
+          <span>Open GPS Pin</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // STATE MANAGEMENT & SAMPLE DATA (INVOICE NO & DOCKET NO TRACKING)
+    // =========================================================================
+    const STORAGE_KEY = 'tcl_pod_records_v3';
+    let currentFilter = 'All';
+    let selectedStatus = 'Delivered';
+    let currentPhotoDataUrl = '';
+    let soundEnabled = true;
+
+    // Generate clean SVG POD placeholder images so everything is self-contained & crisp
+    function createSvgPodGraphic(invNo, docketNo, receiver, dateStr, accentColor = '#10B981', qtyNote = '') {
+      const stampLabel = accentColor === '#F59E0B' ? 'PARTIAL POD' : (accentColor === '#E60012' ? 'RE-ATTEMPT' : 'RECEIVED & OK');
+      const extraLine = qtyNote
+        ? `<text x="46" y="304" fill="#B45309" font-family="Arial, sans-serif" font-weight="bold" font-size="13">${qtyNote}</text>`
+        : '';
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">
+          <rect width="640" height="420" fill="#F8FAFC"/>
+          <rect x="24" y="24" width="592" height="372" rx="14" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+          <rect x="24" y="24" width="592" height="56" rx="14" fill="#0F172A"/>
+          <text x="46" y="58" fill="#E60012" font-family="Arial, sans-serif" font-weight="bold" font-size="22">TCL</text>
+          <text x="98" y="58" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="bold" font-size="16">PROOF OF DELIVERY (LR / POD COPY)</text>
+          <rect x="46" y="102" width="260" height="64" rx="8" fill="#F1F5F9"/>
+          <text x="60" y="124" fill="#64748B" font-family="Arial, sans-serif" font-size="11" font-weight="bold">INVOICE NUMBER</text>
+          <text x="60" y="148" fill="#0F172A" font-family="monospace" font-size="16" font-weight="bold">${invNo}</text>
+          <rect x="326" y="102" width="268" height="64" rx="8" fill="#F1F5F9"/>
+          <text x="340" y="124" fill="#64748B" font-family="Arial, sans-serif" font-size="11" font-weight="bold">COURIER DOCKET NO</text>
+          <text x="340" y="148" fill="#0F172A" font-family="monospace" font-size="16" font-weight="bold">${docketNo}</text>
+          <line x1="46" y1="192" x2="594" y2="192" stroke="#E2E8F0" stroke-width="2"/>
+          <text x="46" y="222" fill="#475569" font-family="Arial, sans-serif" font-size="14">Consignee Acknowledgement: Material checked at unloading bay.</text>
+          <text x="46" y="250" fill="#475569" font-family="Arial, sans-serif" font-size="14">Signed By: <tspan font-weight="bold" fill="#0F172A">${receiver}</tspan></text>
+          <text x="46" y="278" fill="#475569" font-family="Arial, sans-serif" font-size="14">Timestamp: <tspan font-weight="bold" fill="#0F172A">${dateStr}</tspan></text>
+          ${extraLine}
+          <g transform="translate(415, 220) rotate(-8)">
+            <rect x="0" y="0" width="165" height="58" rx="8" fill="none" stroke="${accentColor}" stroke-width="4"/>
+            <text x="82" y="26" text-anchor="middle" fill="${accentColor}" font-family="Arial, sans-serif" font-weight="bold" font-size="15">${stampLabel}</text>
+            <text x="82" y="45" text-anchor="middle" fill="${accentColor}" font-family="monospace" font-size="11">TCL VERIFIED</text>
+          </g>
+          <rect x="24" y="338" width="592" height="58" fill="#0F172A"/>
+          <text x="46" y="372" fill="#34D399" font-family="monospace" font-size="13">GPS VERIFIED • TCL LOGISTICS INDIA PVT. LTD.</text>
+        </svg>
+      `;
+      return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg.trim());
+    }
+
+    const DEFAULT_RECORDS = [
+      {
+        id: 'rec-1',
+        invoiceNo: 'TN26101501',
+        docketNo: 'DKT98451203',
+        customerName: 'Chennai New WH Class A-3',
+        status: 'Delivered',
+        invoiceQty: null,
+        deliveredQty: null,
+        returnQty: null,
+        timestamp: '17-11-2026 18:15',
+        gpsCoords: '13.1235, 79.9120',
+        gpsLabel: 'Tiruvallur, TN',
+        receiver: 'Karthik M (WH Supervisor)',
+        remarks: 'Delivery completed without issue',
+        photoUrl: createSvgPodGraphic('TN26101501', 'DKT98451203', 'Karthik M', '17-11-2026 18:15'),
+        syncedToTms: false
+      },
+      {
+        id: 'rec-2',
+        invoiceNo: 'AP26102062',
+        docketNo: 'BLU7741290',
+        customerName: 'Tanay Logistics - AP Hub',
+        status: 'Delivered',
+        invoiceQty: null,
+        deliveredQty: null,
+        returnQty: null,
+        timestamp: '17-11-2026 16:40',
+        gpsCoords: '16.5062, 80.6480',
+        gpsLabel: 'Vijayawada, AP',
+        receiver: 'Suresh Reddy',
+        remarks: 'POD Received & Seal Intact',
+        photoUrl: createSvgPodGraphic('AP26102062', 'BLU7741290', 'Suresh Reddy', '17-11-2026 16:40'),
+        syncedToTms: true
+      },
+      {
+        id: 'rec-3',
+        invoiceNo: 'TN26101492',
+        docketNo: 'DKT98451188',
+        customerName: 'Reliance Digital - Ambattur',
+        status: 'Delivered',
+        invoiceQty: null,
+        deliveredQty: null,
+        returnQty: null,
+        timestamp: '17-11-2026 14:22',
+        gpsCoords: '13.1143, 80.1548',
+        gpsLabel: 'Ambattur, Chennai',
+        receiver: 'Priya Nair',
+        remarks: 'Delivery completed without issue',
+        photoUrl: createSvgPodGraphic('TN26101492', 'DKT98451188', 'Priya Nair', '17-11-2026 14:22'),
+        syncedToTms: true
+      },
+      {
+        id: 'rec-4',
+        invoiceNo: 'MH26104599',
+        docketNo: 'SFX4420918',
+        customerName: 'Flipkart Supply Chain - Bhiwandi',
+        status: 'Partial Delivery',
+        invoiceQty: 25,
+        deliveredQty: 23,
+        returnQty: 2,
+        timestamp: '17-11-2026 13:05',
+        gpsCoords: '19.2813, 73.0483',
+        gpsLabel: 'Bhiwandi, MH',
+        receiver: 'Amit Deshmukh',
+        remarks: 'Damaged during transit — 2 cartons outer box dented & returned',
+        photoUrl: createSvgPodGraphic('MH26104599', 'SFX4420918', 'Amit Deshmukh', '17-11-2026 13:05', '#F59E0B', 'INV QTY: 25 | DEL: 23 | RET: 2'),
+        syncedToTms: false
+      },
+      {
+        id: 'rec-5',
+        invoiceNo: 'TN26100722',
+        docketNo: 'DKT98450940',
+        customerName: 'Croma Retail Store - Anna Nagar',
+        status: 'Re-attempt',
+        invoiceQty: null,
+        deliveredQty: null,
+        returnQty: null,
+        timestamp: '17-11-2026 11:50',
+        gpsCoords: '13.0850, 80.2101',
+        gpsLabel: 'Anna Nagar, Chennai',
+        receiver: 'Security Gate',
+        remarks: 'Consignee unavailable / Unloading bay closed - scheduled tomorrow 10 AM',
+        photoUrl: createSvgPodGraphic('TN26100722', 'DKT98450940', 'Gate Stamp', '17-11-2026 11:50', '#E60012'),
+        syncedToTms: false
+      }
+    ];
+
+    function loadRecords() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_RECORDS));
+          return [...DEFAULT_RECORDS];
+        }
+        return JSON.parse(raw);
+      } catch (e) {
+        return [...DEFAULT_RECORDS];
+      }
+    }
+
+    function saveRecords(records) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      } catch (e) {
+        console.warn('LocalStorage quota exceeded, keeping in memory.');
+      }
+    }
+
+    let podRecords = loadRecords();
+
+    // =========================================================================
+    // AUDIO FEEDBACK (TONE.JS - NO EXTERNAL SOUND URLS)
+    // =========================================================================
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const iconDesktop = document.getElementById('soundIconDesktop');
+      const iconMobile = document.getElementById('soundIconMobile');
+      const label = document.getElementById('soundLabel');
+
+      if (soundEnabled) {
+        iconDesktop.className = 'fa-solid fa-volume-high text-emerald-400';
+        iconMobile.className = 'fa-solid fa-volume-high text-emerald-400';
+        label.textContent = 'Sound On';
+      } else {
+        iconDesktop.className = 'fa-solid fa-volume-xmark text-slate-400';
+        iconMobile.className = 'fa-solid fa-volume-xmark text-slate-400';
+        label.textContent = 'Muted';
+      }
+    }
+
+    async function playChime() {
+      if (!soundEnabled || typeof Tone === 'undefined') return;
+      try {
+        await Tone.start();
+        const synth = new Tone.Synth({
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.01, decay: 0.15, sustain: 0.05, release: 0.3 }
+        }).toDestination();
+        const now = Tone.now();
+        synth.triggerAttackRelease('C5', '16n', now);
+        synth.triggerAttackRelease('G5', '8n', now + 0.11);
+      } catch (err) {
+        // Ignore audio autoplay block if user hasn't interacted yet
+      }
+    }
+
+    // =========================================================================
+    // NAVIGATION & VIEW SWITCHING
+    // =========================================================================
+    function switchView(view) {
+      const driverView = document.getElementById('driverView');
+      const dashboardView = document.getElementById('dashboardView');
+      const tabDriver = document.getElementById('tabDriver');
+      const tabDashboard = document.getElementById('tabDashboard');
+
+      if (view === 'driver') {
+        driverView.classList.remove('hidden');
+        dashboardView.classList.add('hidden');
+        tabDriver.className = 'flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-[#E60012] text-white shadow-sm';
+        tabDashboard.className = 'flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-300 hover:text-white';
+      } else {
+        driverView.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
+        tabDashboard.className = 'flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-[#E60012] text-white shadow-sm';
+        tabDriver.className = 'flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-300 hover:text-white';
+        renderDashboard();
+      }
+    }
+
+    // =========================================================================
+    // DRIVER / COURIER FIELD APP INTERACTIONS
+    // =========================================================================
+    function selectPreset(name) {
+      document.getElementById('customerInput').value = name;
+    }
+
+    function selectStatus(status) {
+      selectedStatus = status;
+      const pills = document.querySelectorAll('.status-pill');
+      pills.forEach(btn => {
+        const btnStatus = btn.getAttribute('data-status');
+        if (btnStatus === status) {
+          if (status === 'Delivered') {
+            btn.className = 'status-pill flex items-center justify-center gap-2 py-3.5 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-bold text-sm shadow-sm transition';
+          } else if (status === 'Partial Delivery') {
+            btn.className = 'status-pill flex items-center justify-center gap-2 py-3.5 px-3 rounded-xl border-2 border-amber-500 bg-amber-50 text-amber-800 font-bold text-sm shadow-sm transition';
+          } else {
+            btn.className = 'status-pill flex items-center justify-center gap-2 py-3.5 px-3 rounded-xl border-2 border-rose-500 bg-rose-50 text-rose-800 font-bold text-sm shadow-sm transition';
+          }
+        } else {
+          btn.className = 'status-pill flex items-center justify-center gap-2 py-3.5 px-3 rounded-xl border-2 border-slate-200 bg-white text-slate-600 hover:border-slate-300 font-semibold text-sm transition';
+        }
+      });
+
+      const partialSection = document.getElementById('partialQtySection');
+      const invoiceQtyEl = document.getElementById('invoiceQtyInput');
+      const returnQtyEl = document.getElementById('returnQtyInput');
+      const remarksEl = document.getElementById('remarksInput');
+      const remarksStar = document.getElementById('remarksRequiredStar');
+
+      if (status === 'Delivered') {
+        partialSection.classList.add('hidden');
+        invoiceQtyEl.required = false;
+        returnQtyEl.required = false;
+        invoiceQtyEl.value = '';
+        returnQtyEl.value = '';
+        remarksEl.required = false;
+        remarksStar.classList.add('hidden');
+        remarksEl.value = 'Delivery completed without issue';
+      } else if (status === 'Partial Delivery') {
+        partialSection.classList.remove('hidden');
+        invoiceQtyEl.required = true;
+        returnQtyEl.required = true;
+        remarksEl.required = true;
+        remarksStar.classList.remove('hidden');
+        remarksEl.value = '';
+        remarksEl.placeholder = 'Enter mandatory partial delivery reason (e.g., Shortage in carton)';
+        updatePartialCalc();
+      } else {
+        partialSection.classList.add('hidden');
+        invoiceQtyEl.required = false;
+        returnQtyEl.required = false;
+        invoiceQtyEl.value = '';
+        returnQtyEl.value = '';
+        remarksEl.required = true;
+        remarksStar.classList.remove('hidden');
+        remarksEl.value = 'Consignee unavailable / Door locked';
+        remarksEl.placeholder = 'Enter mandatory reason for non-delivery';
+      }
+    }
+
+    function updatePartialCalc() {
+      const invQty = parseInt(document.getElementById('invoiceQtyInput').value, 10);
+      const retQty = parseInt(document.getElementById('returnQtyInput').value, 10);
+      const badge = document.getElementById('calcDeliveredBadge');
+
+      if (isNaN(invQty) || invQty <= 0) {
+        badge.textContent = 'Delivered: —';
+        badge.className = 'px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-xs font-extrabold text-slate-500 shadow-sm';
+        return;
+      }
+
+      const safeRet = isNaN(retQty) ? 0 : retQty;
+      if (safeRet < 0 || safeRet > invQty) {
+        badge.textContent = 'Invalid Return Qty';
+        badge.className = 'px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-300 text-xs font-extrabold text-rose-700 shadow-sm';
+      } else {
+        const delQty = invQty - safeRet;
+        badge.textContent = `Delivered: ${delQty} / ${invQty}`;
+        badge.className = 'px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-xs font-extrabold text-emerald-700 shadow-sm';
+      }
+    }
+
+    function applyPartialReason(reasonText) {
+      const remarksEl = document.getElementById('remarksInput');
+      remarksEl.value = reasonText;
+      remarksEl.focus();
+    }
+
+    function getFormattedNow() {
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const min = String(now.getMinutes()).padStart(2, '0');
+      return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+    }
+
+    function handlePhotoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        currentPhotoDataUrl = e.target.result;
+        showPhotoPreview(currentPhotoDataUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function generateSamplePodPhoto() {
+      const inv = document.getElementById('invoiceInput').value.trim().toUpperCase() || 'TN26101588';
+      const docket = document.getElementById('docketInput').value.trim().toUpperCase() || 'DKT98451990';
+      const rec = document.getElementById('receiverInput').value.trim() || 'Authorized Signatory';
+      const ts = getFormattedNow();
+      const accent = selectedStatus === 'Partial Delivery' ? '#F59E0B' : (selectedStatus === 'Re-attempt' ? '#E60012' : '#10B981');
+      let qtyNote = '';
+      if (selectedStatus === 'Partial Delivery') {
+        const invQ = parseInt(document.getElementById('invoiceQtyInput').value, 10) || 0;
+        const retQ = parseInt(document.getElementById('returnQtyInput').value, 10) || 0;
+        if (invQ > 0) {
+          qtyNote = `INV QTY: ${invQ} | DEL: ${Math.max(0, invQ - retQ)} | RET: ${retQ}`;
+        }
+      }
+      currentPhotoDataUrl = createSvgPodGraphic(inv, docket, rec, ts, accent, qtyNote);
+      showPhotoPreview(currentPhotoDataUrl);
+    }
+
+    function showPhotoPreview(dataUrl) {
+      document.getElementById('podPreviewImg').src = dataUrl;
+      document.getElementById('watermarkTimestamp').textContent = `${getFormattedNow()} IST`;
+      document.getElementById('photoDropZone').classList.add('hidden');
+      document.getElementById('photoPreviewContainer').classList.remove('hidden');
+    }
+
+    function resetPhoto() {
+      currentPhotoDataUrl = '';
+      document.getElementById('podFileInput').value = '';
+      document.getElementById('photoPreviewContainer').classList.add('hidden');
+      document.getElementById('photoDropZone').classList.remove('hidden');
+    }
+
+    function captureGpsLocation() {
+      const btn = document.getElementById('captureGpsBtn');
+      const badge = document.getElementById('gpsStatusBadge');
+      const addr = document.getElementById('gpsAddressText');
+      const link = document.getElementById('gpsMapLink');
+      const watermark = document.getElementById('watermarkCoords');
+
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[#E60012]"></i><span>Locating...</span>';
+      badge.textContent = 'Acquiring Satellites...';
+      badge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
+
+      const applyCoords = (lat, lng, label) => {
+        const coordsStr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        badge.textContent = 'Locked (Accuracy 9m)';
+        badge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+        addr.textContent = `${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E — ${label}`;
+        link.href = `https://maps.google.com/?q=${lat},${lng}`;
+        link.dataset.coords = coordsStr;
+        link.dataset.label = label;
+        watermark.textContent = `GPS: ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E • ${label}`;
+        btn.innerHTML = '<i class="fa-solid fa-crosshairs text-[#E60012]"></i><span>Refresh GPS</span>';
+      };
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => applyCoords(pos.coords.latitude, pos.coords.longitude, 'Live Device GPS'),
+          () => {
+            // Fallback simulated Tamil Nadu / Chennai logistics hub coordinate
+            const jitterLat = 13.1235 + (Math.random() - 0.5) * 0.02;
+            const jitterLng = 79.9120 + (Math.random() - 0.5) * 0.02;
+            applyCoords(jitterLat, jitterLng, 'Tiruvallur Logistics Corridor, TN');
+          },
+          { timeout: 3000 }
+        );
+      } else {
+        applyCoords(13.1235, 79.9120, 'Tiruvallur Logistics Corridor, TN');
+      }
+    }
+
+    function fillQuickTestSample() {
+      const randNum = Math.floor(100 + Math.random() * 899);
+      const docketRand = Math.floor(10000 + Math.random() * 89999);
+      document.getElementById('invoiceInput').value = `TN26101${randNum}`;
+      document.getElementById('docketInput').value = `DKT984${docketRand}`;
+      document.getElementById('customerInput').value = 'Chennai New WH Class A-3';
+      document.getElementById('receiverInput').value = 'Muthu Kumar (9840912345)';
+      selectStatus('Delivered');
+      generateSamplePodPhoto();
+    }
+
+    function handlePodSubmit(event) {
+      event.preventDefault();
+
+      const invoiceNo = document.getElementById('invoiceInput').value.trim().toUpperCase();
+      const docketNo = document.getElementById('docketInput').value.trim().toUpperCase();
+      const customerName = document.getElementById('customerInput').value.trim();
+      const receiver = document.getElementById('receiverInput').value.trim() || 'Consignee Stamp';
+      const remarks = document.getElementById('remarksInput').value.trim();
+      const timestamp = getFormattedNow();
+
+      let invoiceQty = null;
+      let returnQty = null;
+      let deliveredQty = null;
+
+      if (selectedStatus === 'Partial Delivery') {
+        invoiceQty = parseInt(document.getElementById('invoiceQtyInput').value, 10);
+        returnQty = parseInt(document.getElementById('returnQtyInput').value, 10);
+
+        if (isNaN(invoiceQty) || invoiceQty <= 0) {
+          showToast('Missing Invoice Qty', 'Please enter a valid Invoice Qty greater than 0 for Partial delivery.', 'error');
+          document.getElementById('invoiceQtyInput').focus();
+          return;
+        }
+        if (isNaN(returnQty) || returnQty < 0 || returnQty > invoiceQty) {
+          showToast('Invalid Return Qty', `Return Qty must be between 0 and Invoice Qty (${invoiceQty}).`, 'error');
+          document.getElementById('returnQtyInput').focus();
+          return;
+        }
+        if (!remarks) {
+          showToast('Remarks Required', 'Please enter or select a reason for Partial delivery.', 'error');
+          document.getElementById('remarksInput').focus();
+          return;
+        }
+        deliveredQty = invoiceQty - returnQty;
+      } else if (selectedStatus === 'Re-attempt' && !remarks) {
+        showToast('Remarks Required', 'Please enter a reason why the shipment could not be delivered.', 'error');
+        document.getElementById('remarksInput').focus();
+        return;
+      }
+
+      const finalRemarks = remarks || 'Delivery completed without issue';
+      const mapLink = document.getElementById('gpsMapLink');
+      const gpsCoords = mapLink.dataset.coords || '13.1235, 79.9120';
+      const gpsLabel = mapLink.dataset.label || 'Tiruvallur, TN';
+
+      if (!currentPhotoDataUrl) {
+        const accent = selectedStatus === 'Partial Delivery' ? '#F59E0B' : (selectedStatus === 'Re-attempt' ? '#E60012' : '#10B981');
+        const qtyNote = selectedStatus === 'Partial Delivery' ? `INV QTY: ${invoiceQty} | DEL: ${deliveredQty} | RET: ${returnQty}` : '';
+        currentPhotoDataUrl = createSvgPodGraphic(invoiceNo, docketNo, receiver, timestamp, accent, qtyNote);
+      }
+
+      const newRecord = {
+        id: 'rec-' + Date.now(),
+        invoiceNo,
+        docketNo,
+        customerName,
+        status: selectedStatus,
+        invoiceQty,
+        deliveredQty,
+        returnQty,
+        timestamp,
+        gpsCoords,
+        gpsLabel,
+        receiver,
+        remarks: finalRemarks,
+        photoUrl: currentPhotoDataUrl,
+        syncedToTms: false
+      };
+
+      podRecords.unshift(newRecord);
+      saveRecords(podRecords);
+      updateNavBadge();
+      playChime();
+
+      const qtyToastSuffix = selectedStatus === 'Partial Delivery'
+        ? ` (Inv: ${invoiceQty}, Del: ${deliveredQty}, Ret: ${returnQty})`
+        : '';
+
+      showToast(
+        `POD Logged & Office Notified!`,
+        `Invoice ${invoiceNo} (Docket ${docketNo}) marked as ${selectedStatus}${qtyToastSuffix}.`,
+        'success'
+      );
+
+      // Update live office banner
+      document.getElementById('liveBannerText').textContent =
+        `NEW POD RECEIVED: Invoice ${invoiceNo} / Docket ${docketNo} (${customerName}) — ${selectedStatus}${qtyToastSuffix} at ${timestamp}`;
+      document.getElementById('lastAlertTime').textContent = `• Just now`;
+
+      // Reset form cleanly for next parcel
+      document.getElementById('podForm').reset();
+      selectStatus('Delivered');
+      resetPhoto();
+    }
+
+    // =========================================================================
+    // LIVE OFFICE DASHBOARD RENDERING, SIMULATION & CSV EXPORT
+    // =========================================================================
+    function updateNavBadge() {
+      document.getElementById('navBadgeCount').textContent = podRecords.length;
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-pill').forEach(pill => {
+        if (pill.getAttribute('data-filter') === filter) {
+          pill.className = 'filter-pill px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white transition';
+        } else {
+          pill.className = 'filter-pill px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+        }
+      });
+      renderDashboard();
+    }
+
+    function renderDashboard() {
+      // 1. Update KPI Cards
+      const total = podRecords.length;
+      const delivered = podRecords.filter(r => r.status === 'Delivered').length;
+      const pendingSync = podRecords.filter(r => !r.syncedToTms).length;
+      const issues = podRecords.filter(r => r.status !== 'Delivered').length;
+
+      document.getElementById('kpiTotal').textContent = total;
+      document.getElementById('kpiDelivered').textContent = delivered;
+      document.getElementById('kpiPending').textContent = pendingSync;
+      document.getElementById('kpiIssues').textContent = issues;
+      updateNavBadge();
+
+      // 2. Filter Records
+      const query = document.getElementById('searchInput').value.trim().toLowerCase();
+      const filtered = podRecords.filter(rec => {
+        const matchesSearch =
+          rec.invoiceNo.toLowerCase().includes(query) ||
+          rec.docketNo.toLowerCase().includes(query) ||
+          rec.customerName.toLowerCase().includes(query) ||
+          rec.receiver.toLowerCase().includes(query);
+
+        if (!matchesSearch) return false;
+
+        if (currentFilter === 'Delivered') return rec.status === 'Delivered';
+        if (currentFilter === 'Pending Sync') return !rec.syncedToTms;
+        if (currentFilter === 'Issue') return rec.status !== 'Delivered';
+        return true;
+      });
+
+      // 3. Render Table Rows
+      const tbody = document.getElementById('podTableBody');
+      document.getElementById('tableCountLabel').textContent = `Showing ${filtered.length} of ${total} shipment records`;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="10" class="py-10 px-4 text-center text-slate-500">
+              <i class="fa-solid fa-inbox text-2xl text-slate-300 mb-2 block"></i>
+              No matching POD records found. Try clearing filters or submitting a test POD.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(rec => {
+        let statusBadge = '';
+        let qtyCellHtml = '<span class="text-xs font-semibold text-emerald-700">Full Qty</span>';
+
+        if (rec.status === 'Delivered') {
+          statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Delivered</span>`;
+        } else if (rec.status === 'Partial Delivery') {
+          statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Partial</span>`;
+          qtyCellHtml = `
+            <div class="text-xs font-mono leading-tight">
+              <span class="font-bold text-slate-800">Inv: ${rec.invoiceQty ?? '-'}</span>
+              <span class="mx-1 text-slate-300">|</span>
+              <span class="font-bold text-emerald-700">Del: ${rec.deliveredQty ?? '-'}</span>
+              <span class="mx-1 text-slate-300">|</span>
+              <span class="font-bold text-rose-600">Ret: ${rec.returnQty ?? '-'}</span>
+            </div>
+          `;
+        } else {
+          statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Re-attempt</span>`;
+          qtyCellHtml = '<span class="text-xs text-slate-400">—</span>';
+        }
+
+        const syncBtn = rec.syncedToTms
+          ? `<span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-600"><i class="fa-solid fa-check-double text-emerald-600"></i> Synced to TMS</span>`
+          : `<button onclick="toggleTmsSync('${rec.id}')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-[#E60012] text-white shadow-sm transition">Mark Synced</button>`;
+
+        return `
+          <tr class="hover:bg-slate-50/90 transition">
+            <td class="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">${rec.invoiceNo}</td>
+            <td class="py-3.5 px-4 font-mono font-semibold text-slate-700 whitespace-nowrap">${rec.docketNo}</td>
+            <td class="py-3.5 px-4">
+              <div class="font-semibold text-slate-900">${rec.customerName}</div>
+              <div class="text-xs text-slate-500">Rcvr: ${rec.receiver}</div>
+            </td>
+            <td class="py-3.5 px-4 whitespace-nowrap">${statusBadge}</td>
+            <td class="py-3.5 px-4 whitespace-nowrap">${qtyCellHtml}</td>
+            <td class="py-3.5 px-4 max-w-[220px]">
+              <p class="text-xs text-slate-700 line-clamp-2" title="${rec.remarks}">${rec.remarks}</p>
+            </td>
+            <td class="py-3.5 px-4 text-xs font-medium text-slate-600 whitespace-nowrap">${rec.timestamp}</td>
+            <td class="py-3.5 px-4 whitespace-nowrap">
+              <a href="https://maps.google.com/?q=${rec.gpsCoords}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-[#E60012] transition">
+                <i class="fa-solid fa-location-dot text-emerald-600"></i>
+                <span>${rec.gpsLabel}</span>
+              </a>
+            </td>
+            <td class="py-3.5 px-4 whitespace-nowrap">
+              <button onclick="openPhotoModal('${rec.id}')" class="group relative inline-flex items-center gap-2 p-1 pr-2.5 rounded-xl border border-slate-200 bg-white hover:border-[#E60012] shadow-sm transition">
+                <img src="${rec.photoUrl}" alt="POD" class="w-10 h-8 object-cover rounded-lg" />
+                <span class="text-xs font-semibold text-slate-700 group-hover:text-[#E60012]">View POD</span>
+              </button>
+            </td>
+            <td class="py-3.5 px-4 text-right whitespace-nowrap">${syncBtn}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleTmsSync(id) {
+      const idx = podRecords.findIndex(r => r.id === id);
+      if (idx !== -1) {
+        podRecords[idx].syncedToTms = true;
+        saveRecords(podRecords);
+        renderDashboard();
+        showToast('TMS Status Updated', `Invoice ${podRecords[idx].invoiceNo} (Docket ${podRecords[idx].docketNo}) marked as Synced.`, 'info');
+      }
+    }
+
+    function simulateIncomingDelivery() {
+      const hubs = [
+        { inv: 'TN26101564', docket: 'DKT98452249', cust: 'Chennai New WH Class A-2', gps: '13.0827, 80.2707', label: 'Chennai Central, TN', rcvr: 'Vignesh S' },
+        { inv: 'AP26102118', docket: 'BLU7741852', cust: 'Tanay Logistics - Tirupati', gps: '13.6288, 79.4192', label: 'Tirupati, AP', rcvr: 'Kiran Kumar' },
+        { inv: 'HR26108841', docket: 'SFX4421955', cust: 'Mepro Noida Defective WH', gps: '28.5355, 77.3910', label: 'Noida Sector 62, UP', rcvr: 'Deepak Sharma' }
+      ];
+      const pick = hubs[Math.floor(Math.random() * hubs.length)];
+      const randSuffix = Math.floor(10 + Math.random() * 89);
+      const invoiceNo = pick.inv.slice(0, -2) + randSuffix;
+      const docketNo = pick.docket.slice(0, -2) + randSuffix;
+      const timestamp = getFormattedNow();
+
+      const simulated = {
+        id: 'rec-' + Date.now(),
+        invoiceNo,
+        docketNo,
+        customerName: pick.cust,
+        status: 'Delivered',
+        invoiceQty: null,
+        deliveredQty: null,
+        returnQty: null,
+        timestamp,
+        gpsCoords: pick.gps,
+        gpsLabel: pick.label,
+        receiver: pick.rcvr,
+        remarks: 'Delivery completed without issue (Courier Live)',
+        photoUrl: createSvgPodGraphic(invoiceNo, docketNo, pick.rcvr, timestamp),
+        syncedToTms: false
+      };
+
+      podRecords.unshift(simulated);
+      saveRecords(podRecords);
+      renderDashboard();
+      playChime();
+
+      document.getElementById('liveBannerText').textContent =
+        `LIVE ALERT: Courier delivered Invoice ${invoiceNo} (Docket ${docketNo}) at ${pick.cust} — Signed by ${pick.rcvr}`;
+      document.getElementById('lastAlertTime').textContent = `• ${timestamp}`;
+
+      showToast(
+        `Incoming Delivery Alert!`,
+        `Invoice ${invoiceNo} (${docketNo}) just delivered at ${pick.label}.`,
+        'success'
+      );
+    }
+
+    // Export MIS / TCL TMS Batch Upload Ready CSV
+    function exportMisCsv() {
+      const headers = [
+        'Invoice No',
+        'Docket No',
+        'Customer / WH Name',
+        'Delivery Status',
+        'Invoice Qty',
+        'Delivered Qty',
+        'Return Qty',
+        'Delivered Date & Time',
+        'Receiver Name',
+        'Remarks',
+        'GPS Coordinates',
+        'Google Maps Link',
+        'TMS Sync Status'
+      ];
+
+      const rows = podRecords.map(r => [
+        `"${r.invoiceNo}"`,
+        `"${r.docketNo}"`,
+        `"${r.customerName.replace(/"/g, '""')}"`,
+        `"${r.status}"`,
+        `"${r.invoiceQty !== null && r.invoiceQty !== undefined ? r.invoiceQty : ''}"`,
+        `"${r.deliveredQty !== null && r.deliveredQty !== undefined ? r.deliveredQty : ''}"`,
+        `"${r.returnQty !== null && r.returnQty !== undefined ? r.returnQty : ''}"`,
+        `"${r.timestamp}"`,
+        `"${r.receiver.replace(/"/g, '""')}"`,
+        `"${r.remarks.replace(/"/g, '""')}"`,
+        `"${r.gpsCoords}"`,
+        `"https://maps.google.com/?q=${r.gpsCoords}"`,
+        `"${r.syncedToTms ? 'Synced' : 'Pending Sync'}"`
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      const dateTag = new Date().toISOString().slice(0, 10);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `TCL_MIS_POD_Status_${dateTag}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast('MIS / TMS CSV Exported', `Downloaded ${podRecords.length} records ready for Excel VLOOKUP / TMS upload.`, 'info');
+    }
+
+    function resetDemoData() {
+      podRecords = [...DEFAULT_RECORDS];
+      saveRecords(podRecords);
+      renderDashboard();
+      showToast('Demo Data Restored', 'Reset to default TCL shipment sample records.', 'info');
+    }
+
+    // =========================================================================
+    // LIGHTBOX MODAL & TOAST NOTIFICATIONS
+    // =========================================================================
+    function openPhotoModal(id) {
+      const rec = podRecords.find(r => r.id === id);
+      if (!rec) return;
+
+      document.getElementById('modalTitle').textContent = `POD Verification — ${rec.status}`;
+      document.getElementById('modalSubtitle').textContent = `Invoice: ${rec.invoiceNo} • Docket: ${rec.docketNo} • ${rec.timestamp}`;
+      document.getElementById('modalImg').src = rec.photoUrl;
+      document.getElementById('modalReceiver').textContent = `Receiver: ${rec.receiver} (${rec.customerName})`;
+
+      const qtyEl = document.getElementById('modalQtyInfo');
+      if (rec.status === 'Partial Delivery' && rec.invoiceQty !== null) {
+        qtyEl.textContent = `Qty Breakdown: Invoice ${rec.invoiceQty} | Delivered ${rec.deliveredQty} | Return ${rec.returnQty}`;
+        qtyEl.classList.remove('hidden');
+      } else {
+        qtyEl.classList.add('hidden');
+      }
+
+      document.getElementById('modalRemarks').textContent = `Remarks: ${rec.remarks}`;
+      document.getElementById('modalGpsLink').href = `https://maps.google.com/?q=${rec.gpsCoords}`;
+
+      document.getElementById('photoModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('photoModal').classList.add('hidden');
+    }
+
+    function showToast(title, message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const borderAccent = type === 'success' ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-[#E60012]';
+      const iconHtml = type === 'success'
+        ? '<i class="fa-solid fa-circle-check text-emerald-500 text-lg"></i>'
+        : '<i class="fa-solid fa-circle-info text-[#E60012] text-lg"></i>';
+
+      toast.className = `pointer-events-auto bg-white border border-slate-200 ${borderAccent} rounded-xl shadow-xl p-3.5 flex items-start gap-3 animate-toast`;
+      toast.innerHTML = `
+        <div class="mt-0.5 shrink-0">${iconHtml}</div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-bold text-slate-900">${title}</p>
+          <p class="text-xs text-slate-600 mt-0.5 leading-snug">${message}</p>
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-slate-600 text-xs p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      `;
+
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentElement) toast.remove();
+      }, 4500);
+    }
+
+    // Initialize counts on load
+    updateNavBadge();
+    renderDashboard();
+  </script>
+</body>
+</html>
